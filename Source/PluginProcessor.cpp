@@ -23,36 +23,13 @@ ChaorusFlangosAudioProcessor::ChaorusFlangosAudioProcessor()
 #endif
 {
     /* Construct and add parameters */
-    addParameter(mDryWetParameter = new juce::AudioParameterFloat(juce::ParameterID{"dry wet", 1},
-                                                                  "Dry Wet",
-                                                                  0.0,
-                                                                  1.0,
-                                                                  0.5));
-    addParameter(mDepthParameter = new juce::AudioParameterFloat(juce::ParameterID{"depth", 2},
-                                                                    "Depth",
-                                                                    0.0,
-                                                                    1.0,
-                                                                    0.5));
-    addParameter(mRateParameter = new juce::AudioParameterFloat(juce::ParameterID{"rate", 3},
-                                                                    "Rate",
-                                                                    0.1f,
-                                                                    20.f,
-                                                                    10.f));
-    addParameter(mPhaseOffsetParameter = new juce::AudioParameterFloat(juce::ParameterID{"phaseoffset", 4},
-                                                                    "Phase Offset",
-                                                                    0.0f,
-                                                                    1.f,
-                                                                    0.f));
-    addParameter(mFeedbackParameter = new juce::AudioParameterFloat(juce::ParameterID{"feedback", 5},
-                                                                    "Feedback",
-                                                                    0.0,
-                                                                    0.98,
-                                                                    0.5));
-    addParameter(mTypeParameter = new juce::AudioParameterInt(juce::ParameterID{"type", 5},
-                                                                    "Type",
-                                                                    0,
-                                                                    1,
-                                                                    0));
+    addParameter(mDryWetParameter = new juce::AudioParameterFloat(juce::ParameterID{"dry wet", 1}, "Dry Wet", 0.0, 1.0, 0.5));
+    addParameter(mDepthParameter = new juce::AudioParameterFloat(juce::ParameterID{"depth", 2}, "Depth", 0.0, 1.0, 0.5));
+    addParameter(mRateParameter = new juce::AudioParameterFloat(juce::ParameterID{"rate", 3}, "Rate", 0.1f, 20.f, 10.f));
+    addParameter(mPhaseOffsetParameter = new juce::AudioParameterFloat(juce::ParameterID{"phaseoffset", 4}, "Phase Offset", 0.0f, 1.f, 0.f));
+    addParameter(mFeedbackParameter = new juce::AudioParameterFloat(juce::ParameterID{"feedback", 5}, "Feedback", 0.0, 0.98, 0.5));
+    addParameter(mDistortionParameter = new juce::AudioParameterFloat(juce::ParameterID{"distortion", 6}, "Distortion", 0.0, 1.0, 0.0));
+    addParameter(mTypeParameter = new juce::AudioParameterInt(juce::ParameterID{"type", 7}, "Type", 0, 2, 0));
 
 
     /* Initialize our data to default values */
@@ -257,7 +234,12 @@ void ChaorusFlangosAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
             lfoOutMappedRight = juce::jmap(lfoOutRight, -1.f, 1.f, 0.005f, 0.03f);
 
         // flanger
-        } else {
+        } else if(*mTypeParameter == 1) {
+            lfoOutMappedLeft = juce::jmap(lfoOutLeft, -1.f, 1.f, 0.001f, 0.005f);
+            lfoOutMappedRight = juce::jmap(lfoOutRight, -1.f, 1.f, 0.001f, 0.005f);
+        }
+        // tormentrix - same as flanger but with distortion
+        else {
             lfoOutMappedLeft = juce::jmap(lfoOutLeft, -1.f, 1.f, 0.001f, 0.005f);
             lfoOutMappedRight = juce::jmap(lfoOutRight, -1.f, 1.f, 0.001f, 0.005f);
         }
@@ -310,6 +292,19 @@ void ChaorusFlangosAudioProcessor::processBlock (juce::AudioBuffer<float>& buffe
         mFeedbackLeft = delay_sample_left * *mFeedbackParameter;
         mFeedbackRight = delay_sample_right * *mFeedbackParameter;
 
+        // Apply distortion for Tormentrix mode
+        if(*mTypeParameter == 2) {
+            float distortionAmount = *mDistortionParameter;
+            if(distortionAmount > 0.0f) {
+                // Soft clipping distortion
+                delay_sample_left = juce::jlimit(-1.0f, 1.0f, delay_sample_left * (1.0f + distortionAmount * 3.0f));
+                delay_sample_right = juce::jlimit(-1.0f, 1.0f, delay_sample_right * (1.0f + distortionAmount * 3.0f));
+                
+                // Apply tanh saturation for smoother distortion
+                delay_sample_left = std::tanh(delay_sample_left * (1.0f + distortionAmount * 2.0f));
+                delay_sample_right = std::tanh(delay_sample_right * (1.0f + distortionAmount * 2.0f));
+            }
+        }
 
         mCircularBufferWriteHead++;
 
@@ -347,6 +342,7 @@ void ChaorusFlangosAudioProcessor::getStateInformation (juce::MemoryBlock& destD
     xml->setAttribute("Rate", *mRateParameter);
     xml->setAttribute("PhaseOffset", *mPhaseOffsetParameter);
     xml->setAttribute("Feedback", *mFeedbackParameter);
+    xml->setAttribute("Distortion", *mDistortionParameter);
     xml->setAttribute("Type", *mTypeParameter);
 
     copyXmlToBinary(*xml, destData);
@@ -362,6 +358,7 @@ void ChaorusFlangosAudioProcessor::setStateInformation (const void* data, int si
         *mRateParameter = xml->getDoubleAttribute("Rate");
         *mPhaseOffsetParameter = xml->getDoubleAttribute("PhaseOffset");
         *mFeedbackParameter = xml->getDoubleAttribute("Feedback");
+        *mDistortionParameter = xml->getDoubleAttribute("Distortion");
 
         *mTypeParameter = xml->getIntAttribute("Type");
     }

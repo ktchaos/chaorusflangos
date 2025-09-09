@@ -66,6 +66,7 @@ private:
     juce::AudioParameterFloat* mRateParameter;
     juce::AudioParameterFloat* mPhaseOffsetParameter;
     juce::AudioParameterFloat* mFeedbackParameter;
+    juce::AudioParameterFloat* mDistortionParameter;
 
     juce::AudioParameterInt* mTypeParameter;
 
